@@ -15,6 +15,7 @@ qt_add_executable(appAutomative_DashBoard
 
     backend/DashboardController.cpp
     backend/SerialWorker.cpp
+    firmware/main.c
     resources.qrc
 )
 
