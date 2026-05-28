@@ -4,7 +4,8 @@ project(Automative_DashBoard VERSION 0.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(QT_QML_GENERATE_QMLLS_INI ON)
-
+set(CMAKE_AUTOMOC ON)      # Tự động chạy moc cho Q_OBJECT
+set(CMAKE_AUTORCC ON)      # Tự động xử lý .qrc resource files
 find_package(Qt6 REQUIRED COMPONENTS Quick SerialPort)
 
 qt_standard_project_setup(REQUIRES 6.5)
@@ -14,7 +15,10 @@ qt_add_executable(appAutomative_DashBoard
 
     backend/DashboardController.cpp
     backend/SerialWorker.cpp
+    resources.qrc
 )
+
+
 target_sources(appAutomative_DashBoard PRIVATE
     backend/DashboardController.h
     backend/SerialWorker.h

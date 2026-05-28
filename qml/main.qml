@@ -261,7 +261,8 @@ Window {
                                 // Đỏ khi overspeed
                                 Behavior on color { ColorAnimation { duration: 300 } }
                                 Component.onCompleted: {
-                                    root.Connections {
+                                    root.Connections
+                                    {
                                         target: dashboard
                                         function onSpeedChanged(s) {
                                             speedReadout.color = s > 200 ? "#FF3030" :

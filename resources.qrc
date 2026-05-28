@@ -1,0 +1,9 @@
+<!DOCTYPE RCC>
+<RCC version="1.0">
+    <qresource prefix="/">
+        <file>qml/main.qml</file>
+        <file>qml/Speedometer.qml</file>
+        <file>qml/Tachometer.qml</file>
+        <file>qml/GearDisplay.qml</file>
+    </qresource>
+</RCC>
