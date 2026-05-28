@@ -186,7 +186,7 @@ Window {
             // Speedometer
             Item {
                 Layout.fillHeight: true
-                Layout.preferredWidth: parent.width * 0.38
+                Layout.preferredWidth: root.width * 0.38
 
                 // Label
                 Text {
@@ -213,13 +213,13 @@ Window {
             // ── Center panel ──
             ColumnLayout {
                 Layout.fillHeight: true
-                Layout.preferredWidth: parent.width * 0.24
+                Layout.preferredWidth: root.width * 0.24
                 spacing: 12
 
                 // PRND Gear Display
                 GearDisplay {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: parent.height * 0.30
+                    Layout.preferredHeight: 120 //parent.height * 0.30
                     currentGear: dashboard.gear
                 }
 
@@ -321,7 +321,7 @@ Window {
             // Tachometer (component chuyên biệt)
             Item {
                 Layout.fillHeight: true
-                Layout.preferredWidth: parent.width * 0.38
+                Layout.preferredWidth: root.width * 0.38
 
                 Text {
                     text:  "ENGINE RPM"

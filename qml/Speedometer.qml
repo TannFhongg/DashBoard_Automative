@@ -101,7 +101,8 @@ Item {
             ctx.strokeStyle  = "#7799AA";
             ctx.lineWidth    = 2.5;
             ctx.fillStyle    = "#AACCDD";
-            ctx.font         = "bold " + Math.round(r * 0.09) + "px 'Courier New'";
+            //ctx.font         = "bold " + Math.round(r * 0.09) + "px 'Courier New'";
+            ctx.font = "bold " + Math.round(r * 0.09) + "px monospace";
             ctx.textAlign    = "center";
             ctx.textBaseline = "middle";
 
@@ -148,7 +149,7 @@ Item {
 
             var cx  = width  / 2;
             var cy  = height / 2;
-            var rad = (angle - 90) * Math.PI / 180;
+            var rad = angle * Math.PI / 180;
             var len = Math.min(width, height) * 0.38;  // chiều dài kim
             var tail = Math.min(width, height) * 0.08; // đuôi kim
             var w   = 3.5;  // nửa chiều rộng gốc kim

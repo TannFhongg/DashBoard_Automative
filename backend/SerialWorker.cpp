@@ -77,16 +77,8 @@ void SerialWorker::openPort(const QString &portName, int baudRate)
     m_rxBuffer.clear();
 
     // Tạo QSerialPort trên Worker Thread → đúng affinity
+    // Tạo QSerialPort trên Worker Thread → đúng affinity
     m_serial = new QSerialPort(this);
-
-    // Kết nối signals của QSerialPort → slots của Worker (same thread = Direct)
-    connect(m_serial, &QSerialPort::readyRead,
-            this,     &SerialWorker::onDataReady,
-            Qt::DirectConnection);
-
-    connect(m_serial, &QSerialPort::errorOccurred,
-            this,     &SerialWorker::onSerialError,
-            Qt::DirectConnection);
 
     // Cấu hình thông số UART
     m_serial->setPortName(portName);
@@ -96,11 +88,11 @@ void SerialWorker::openPort(const QString &portName, int baudRate)
     m_serial->setStopBits(QSerialPort::OneStop);
     m_serial->setFlowControl(QSerialPort::NoFlowControl);
 
-    // Mở cổng
+    // ── 1. MỞ CỔNG TRƯỚC ──
     if (!m_serial->open(QIODevice::ReadOnly)) {
         QString err = QString("[SerialWorker] Cannot open %1: %2")
         .arg(portName)
-            .arg(m_serial->errorString());
+            .arg(m_serial->errorString()); // Lúc này m_serial chắc chắn không bị null
         qWarning() << err;
         emit errorOccurred(err);
 
@@ -109,7 +101,17 @@ void SerialWorker::openPort(const QString &portName, int baudRate)
         return;
     }
 
+    // ── 2. NẾU THÀNH CÔNG, MỚI CONNECT SIGNALS ──
+    connect(m_serial, &QSerialPort::readyRead,
+            this,     &SerialWorker::onDataReady,
+            Qt::DirectConnection);
+
+    connect(m_serial, &QSerialPort::errorOccurred,
+            this,     &SerialWorker::onSerialError,
+            Qt::DirectConnection);
+
     m_connected    = true;
+    // ... (Giữ nguyên các đoạn code m_lastStatTime = ... bên dưới)
     m_lastStatTime = QDateTime::currentMSecsSinceEpoch();
     m_frameCount   = 0;
 

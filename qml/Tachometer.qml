@@ -189,7 +189,7 @@ Item {
             // ─────────────────────────────────
             var majorCount = 8;  // 0, 1, 2 ... 8 (×1000 rpm)
             ctx.lineWidth        = 3;
-            ctx.font             = "bold " + Math.round(r * 0.09) + "px 'Courier New'";
+            ctx.font             = "bold " + Math.round(r * 0.09) + "px monospace";
             ctx.textAlign        = "center";
             ctx.textBaseline     = "middle";
 
@@ -220,7 +220,7 @@ Item {
             var redStartAng = rpmToRad(root.redlineRpm);
             var redMidAng   = rpmToRad((root.redlineRpm + root.maxValue) / 2);
             var labelRR     = r - 58;
-            ctx.font      = "bold " + Math.round(r * 0.065) + "px 'Courier New'";
+            ctx.font      = "bold " + Math.round(r * 0.065) + "px monospace";
             ctx.fillStyle = redlineBlink ? "#FF4040" : "#772222";
             ctx.fillText(
                 "RED",
@@ -286,41 +286,42 @@ Item {
         onRedlineStateChanged: requestPaint()
 
         onPaint: {
-            var ctx  = getContext("2d");
-            ctx.clearRect(0, 0, width, height);
+                    var ctx  = getContext("2d");
+                    ctx.clearRect(0, 0, width, height);
 
-            var cx   = width  / 2;
-            var cy   = height / 2;
-            var rad  = (displayAngle - 90) * Math.PI / 180;
-            var len  = Math.min(width, height) * 0.37;
-            var tail = Math.min(width, height) * 0.09;
-            var w    = 3.5;
+                    var cx   = width  / 2;
+                    var cy   = height / 2;
+                    var rad  = displayAngle * Math.PI / 180;
 
-            ctx.save();
-            ctx.translate(cx, cy);
-            ctx.rotate(rad);
+                    // ── Cân chỉnh tỷ lệ giống hệt Speedometer ──
+                    var len  = Math.min(width, height) * 0.38; // Chiều dài thân kim
+                    var tail = Math.min(width, height) * 0.08; // Chiều dài đuôi kim
+                    var w    = 3.5; // Nửa độ rộng gốc kim
 
-            // Thân kim (tam giác)
-            ctx.beginPath();
-            ctx.moveTo(0,  -len);
-            ctx.lineTo( w,  10);
-            ctx.lineTo(-w,  10);
-            ctx.closePath();
-            ctx.fillStyle = root.isRedline ? "#FF2020" : "#FF7020";
-            ctx.fill();
+                    ctx.save();
+                    ctx.translate(cx, cy);
+                    ctx.rotate(rad);
 
-            // Đuôi kim (hình thang)
-            ctx.beginPath();
-            ctx.moveTo( w,   10);
-            ctx.lineTo(-w,   10);
-            ctx.lineTo(-1.5, tail * height / Math.min(width, height) * 10);
-            ctx.lineTo( 1.5, tail * height / Math.min(width, height) * 10);
-            ctx.closePath();
-            ctx.fillStyle = "#991010";
-            ctx.fill();
+                    // 1. Vẽ thân kim (tam giác)
+                    ctx.beginPath();
+                    ctx.moveTo(0, -len);
+                    ctx.lineTo( w,  0);
+                    ctx.lineTo(-w,  0);
+                    ctx.closePath();
+                    ctx.fillStyle = root.isRedline ? "#FF2020" : "#FF7020";
+                    ctx.fill();
 
-            ctx.restore();
-        }
+                    // 2. Vẽ đuôi kim (đối trọng)
+                    ctx.beginPath();
+                    ctx.moveTo( w,  0);
+                    ctx.lineTo(-w,  0);
+                    ctx.lineTo( 0,  tail);
+                    ctx.closePath();
+                    ctx.fillStyle = "#991010";
+                    ctx.fill();
+
+                    ctx.restore();
+                }
     }
 
     // ── Hub trung tâm: viền đỏ khi redline ──
