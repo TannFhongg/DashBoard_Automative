@@ -7,6 +7,8 @@
  *   - Q_PROPERTY: Expose thuộc tính sang QML, tự động trigger binding
  *   - Q_INVOKABLE: Cho phép QML gọi hàm C++ trực tiếp
  *   - QSettings: Lưu trữ persistent (INI/Registry) cho ODO
+ *   - SerialManager: Worker Pattern, đọc UART trên thread riêng
+ *     → Main Thread (UI) không bao giờ bị block bởi I/O
  */
 
 #pragma once
@@ -15,7 +17,7 @@
 #include <QString>
 #include <QSettings>
 #include <QTimer>
-#include <QtSerialPort/QSerialPort>
+#include "SerialWorker.h"   // Dùng SerialManager thay vì raw QSerialPort
 
 class DashboardController : public QObject
 {
@@ -29,6 +31,7 @@ class DashboardController : public QObject
     Q_PROPERTY(double  odo      READ odo      NOTIFY odoChanged)
     Q_PROPERTY(bool    connected READ connected NOTIFY connectedChanged)
     Q_PROPERTY(QString portName READ portName  WRITE setPortName NOTIFY portNameChanged)
+    Q_PROPERTY(int     serialFps READ serialFps NOTIFY serialFpsChanged)
 
 public:
     explicit DashboardController(QObject *parent = nullptr);
@@ -42,6 +45,7 @@ public:
     double  odo()       const { return m_odo; }
     bool    connected() const { return m_connected; }
     QString portName()  const { return m_portName; }
+    int     serialFps() const { return m_serialFps; }
 
     // Setter cho portName
     void setPortName(const QString &name);
@@ -61,12 +65,15 @@ signals:
     void odoChanged(double odo);
     void connectedChanged(bool connected);
     void portNameChanged(const QString &name);
+    void serialFpsChanged(int fps);
     void errorOccurred(const QString &message);
 
 private slots:
-    // Slot nội bộ: nhận dữ liệu UART
-    void onSerialDataReady();
-    void onSerialError(QSerialPort::SerialPortError error);
+    // ── Slots nhận từ SerialManager (chạy trên Main Thread qua Queued) ──
+    void onFrameReceived(const QString &frame);
+    void onPortOpened(const QString &portName);
+    void onPortClosed();
+    void onSerialStats(int fps);
 
 private:
     // ── Parse frame UART: "S120,R4500,GD,T15.5" ──
@@ -83,12 +90,12 @@ private:
     double  m_trip      = 0.0;
     double  m_odo       = 0.0;
     bool    m_connected = false;
+    int     m_serialFps = 0;
     QString m_portName;
 
     // ── Qt Objects ──
-    QSerialPort *m_serial   = nullptr;
-    QSettings   *m_settings = nullptr;
-    QByteArray   m_rxBuffer;    // Buffer tích lũy dữ liệu UART
+    SerialManager *m_serialManager = nullptr;   // Worker Thread I/O
+    QSettings     *m_settings      = nullptr;
 
     // ── Lưu ODO định kỳ mỗi 5 giây ──
     QTimer *m_saveTimer = nullptr;

@@ -317,7 +317,7 @@ Window {
                 }
             }
 
-            // Tachometer
+            // Tachometer (component chuyên biệt)
             Item {
                 Layout.fillHeight: true
                 Layout.preferredWidth: parent.width * 0.38
@@ -329,7 +329,7 @@ Window {
                     anchors { top: parent.top; horizontalCenter: parent.horizontalCenter }
                 }
 
-                Speedometer {
+                Tachometer {
                     id: rpmGauge
                     anchors {
                         fill:        parent
@@ -338,9 +338,7 @@ Window {
                     }
                     value:      dashboard.rpm
                     maxValue:   8000
-                    arcColor:   "#FF8040"
-                    needleColor: "#FF8040"
-                    label:      "×1000 rpm"
+                    redlineRpm: 6500
                 }
             }
         }
@@ -367,10 +365,11 @@ Window {
                 // FPS / throughput indicator
                 Text {
                     id: fpsText
-                    property int frameCount: 0
-                    text:  "50 FPS  |  UART 115200"
-                    color: "#1A3040"
+                    text:  dashboard.serialFps + " FPS  |  UART 115200"
+                    color: dashboard.serialFps >= 45 ? "#1A3040" :
+                           dashboard.serialFps >= 20 ? "#3A3010" : "#3A1010"
                     font { family: "Courier New"; pixelSize: 10 }
+                    Behavior on color { ColorAnimation { duration: 500 } }
                 }
 
                 Item { Layout.fillWidth: true }

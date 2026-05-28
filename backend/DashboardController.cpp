@@ -2,9 +2,17 @@
  * @file    DashboardController.cpp
  * @brief   Implementation của Qt Backend Controller
  *
- * Luồng dữ liệu:
- *   ESP32 → UART → QSerialPort → onSerialDataReady()
- *   → parseFrame() → emit signals → QML bindings tự cập nhật
+ * Luồng dữ liệu (với SerialManager / Worker Thread):
+ *
+ *   Worker Thread                  Main Thread
+ *   ──────────────────             ──────────────────────────────────
+ *   SerialWorker                   DashboardController        QML
+ *     readAll()                         │                      │
+ *     processBuffer()                   │                      │
+ *     emit frameReceived(str) ─────────▶│ onFrameReceived()    │
+ *                                       │ parseFrame()         │
+ *                                       │ emit speedChanged() ─▶ binding update
+ *                                       │ emit rpmChanged()   ─▶ binding update
  */
 
 #include "DashboardController.h"
@@ -25,15 +33,27 @@ DashboardController::DashboardController(QObject *parent)
     // ── Load ODO đã lưu từ lần trước ──
     loadOdo();
 
-    // ── Khởi tạo Serial Port ──
-    m_serial = new QSerialPort(this);
-    connect(m_serial, &QSerialPort::readyRead,
-            this, &DashboardController::onSerialDataReady);
-    connect(m_serial, &QSerialPort::errorOccurred,
-            this, &DashboardController::onSerialError);
+    // ── Khởi tạo SerialManager (Worker Thread Pattern) ──
+    m_serialManager = new SerialManager(this);
+
+    // Kết nối signals từ SerialManager → slots của Controller
+    // Tất cả đều là Queued Connection → thread-safe, nhận trên Main Thread
+    connect(m_serialManager, &SerialManager::frameReceived,
+            this,            &DashboardController::onFrameReceived);
+
+    connect(m_serialManager, &SerialManager::portOpened,
+            this,            &DashboardController::onPortOpened);
+
+    connect(m_serialManager, &SerialManager::portClosed,
+            this,            &DashboardController::onPortClosed);
+
+    connect(m_serialManager, &SerialManager::statsUpdated,
+            this,            &DashboardController::onSerialStats);
+
+    connect(m_serialManager, &SerialManager::errorOccurred,
+            this,            &DashboardController::errorOccurred);   // Forward thẳng ra QML
 
     // ── Timer lưu ODO định kỳ (mỗi 5 giây) ──
-    // Tránh ghi file quá thường xuyên gây wear trên storage
     m_saveTimer = new QTimer(this);
     m_saveTimer->setInterval(5000);
     connect(m_saveTimer, &QTimer::timeout, this, &DashboardController::saveOdo);
@@ -44,83 +64,60 @@ DashboardController::DashboardController(QObject *parent)
 
 DashboardController::~DashboardController()
 {
-    // Lưu ODO cuối cùng khi thoát ứng dụng
     saveOdo();
-    if (m_serial->isOpen()) {
-        m_serial->close();
-    }
+    m_serialManager->stop();   // Dừng worker thread sạch sẽ
 }
 
 // ─────────────────────────────────────────────
-// KẾT NỐI SERIAL
+// KẾT NỐI / NGẮT SERIAL (Gọi từ QML)
 // ─────────────────────────────────────────────
 void DashboardController::connectSerial()
 {
-    if (m_serial->isOpen()) {
-        qDebug() << "[Serial] Already open";
+    if (m_portName.isEmpty()) {
+        emit errorOccurred("Port name is not set");
         return;
     }
-
-    m_serial->setPortName(m_portName);
-    m_serial->setBaudRate(QSerialPort::Baud115200);
-    m_serial->setDataBits(QSerialPort::Data8);
-    m_serial->setParity(QSerialPort::NoParity);
-    m_serial->setStopBits(QSerialPort::OneStop);
-    m_serial->setFlowControl(QSerialPort::NoFlowControl);
-
-    if (m_serial->open(QIODevice::ReadWrite)) {
-        m_connected = true;
-        emit connectedChanged(true);
-        qDebug() << "[Serial] Connected to" << m_portName << "@ 115200 baud";
-    } else {
-        QString err = QString("Cannot open %1: %2")
-        .arg(m_portName)
-            .arg(m_serial->errorString());
-        qWarning() << "[Serial] Error:" << err;
-        emit errorOccurred(err);
-    }
+    qDebug() << "[Controller] Starting SerialManager on" << m_portName;
+    m_serialManager->start(m_portName, 115200);
 }
 
 void DashboardController::disconnectSerial()
 {
-    if (m_serial->isOpen()) {
-        m_serial->close();
-        m_connected = false;
-        emit connectedChanged(false);
-        qDebug() << "[Serial] Disconnected";
-    }
+    m_serialManager->stop();
 }
 
 // ─────────────────────────────────────────────
-// SLOT: NHẬN DỮ LIỆU UART
-//
-// Kỹ thuật: Tích lũy dữ liệu vào buffer cho đến khi
-// gặp ký tự '\n' mới xử lý → tránh mất frame do
-// TCP-like segmentation của UART
+// SLOTS: NHẬN TỪ SerialManager
+// Tất cả chạy trên Main Thread (Queued Connection)
 // ─────────────────────────────────────────────
-void DashboardController::onSerialDataReady()
+void DashboardController::onPortOpened(const QString &portName)
 {
-    m_rxBuffer.append(m_serial->readAll());
+    m_connected = true;
+    emit connectedChanged(true);
+    qDebug() << "[Controller] Port opened:" << portName;
+}
 
-    // Xử lý tất cả frame hoàn chỉnh trong buffer
-    while (true) {
-        int newlinePos = m_rxBuffer.indexOf('\n');
-        if (newlinePos < 0) break;  // Chưa có frame hoàn chỉnh
+void DashboardController::onPortClosed()
+{
+    m_connected = false;
+    emit connectedChanged(false);
+    // Reset giá trị về 0 khi mất kết nối
+    if (m_speed != 0) { m_speed = 0; emit speedChanged(0); }
+    if (m_rpm   != 0) { m_rpm   = 0; emit rpmChanged(0);   }
+    qDebug() << "[Controller] Port closed";
+}
 
-        // Tách ra 1 frame hoàn chỉnh
-        QByteArray frameBytes = m_rxBuffer.left(newlinePos);
-        m_rxBuffer.remove(0, newlinePos + 1);  // Xóa frame đã xử lý
+void DashboardController::onFrameReceived(const QString &frame)
+{
+    // Frame đã được tách sạch bởi SerialWorker, chỉ cần parse
+    parseFrame(frame);
+}
 
-        QString frame = QString::fromLatin1(frameBytes).trimmed();
-        if (!frame.isEmpty()) {
-            parseFrame(frame);
-        }
-    }
-
-    // Phòng tràn buffer (> 1KB là bất thường)
-    if (m_rxBuffer.size() > 1024) {
-        qWarning() << "[Serial] Buffer overflow, clearing";
-        m_rxBuffer.clear();
+void DashboardController::onSerialStats(int fps)
+{
+    if (m_serialFps != fps) {
+        m_serialFps = fps;
+        emit serialFpsChanged(fps);
     }
 }
 
@@ -242,24 +239,7 @@ QStringList DashboardController::availablePorts()
     const auto infos = QSerialPortInfo::availablePorts();
     for (const QSerialPortInfo &info : infos) {
         ports << info.portName();
+        qDebug() << "  Found port:" << info.portName() << "-" << info.description();
     }
     return ports;
-}
-
-void DashboardController::onSerialError(QSerialPort::SerialPortError error)
-{
-    if (error == QSerialPort::NoError) return;
-
-    QString msg = QString("Serial error [%1]: %2")
-                      .arg(error)
-                      .arg(m_serial->errorString());
-    qWarning() << msg;
-
-    if (error == QSerialPort::ResourceError) {
-        // Thiết bị bị rút ra
-        disconnectSerial();
-        emit errorOccurred("Device disconnected unexpectedly");
-    } else {
-        emit errorOccurred(msg);
-    }
 }
