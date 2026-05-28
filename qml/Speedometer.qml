@@ -1,10 +1,3 @@
-/**
- * @file    Speedometer.qml
- * @brief   Đồng hồ tốc độ - Qt 6.5 compatible
- *
- * Fix: Thay Shape+PathClose bằng Canvas để vẽ kim
- * PathClose không available trong Qt Quick Shapes 1.15 standalone
- */
 
 import QtQuick 2.15
 

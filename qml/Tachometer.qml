@@ -1,21 +1,3 @@
-/**
- * @file    Tachometer.qml
- * @brief   Đồng hồ vòng tua máy (RPM) chuyên biệt
- *
- * Khác biệt so với Speedometer:
- *   - Có vùng màu phân tầng: Xanh → Vàng → Đỏ (Redline)
- *   - Vạch số hiển thị ×1000 rpm (0, 1, 2 ... 8)
- *   - Kim màu cam, đuôi kim màu đỏ rực
- *   - Redline zone từ 6500 RPM trở lên nhấp nháy cảnh báo
- *   - SpringAnimation mạnh hơn → mô phỏng kim RPM
- *     phản ứng nhanh khi tăng ga, rơi chậm khi thả ga
- *
- * Vùng màu arc:
- *   0    → 3000  : Xanh lá   (idle / economy)
- *   3000 → 5500  : Vàng cam  (normal operation)
- *   5500 → 6500  : Cam đậm   (performance)
- *   6500 → 8000  : Đỏ        (REDLINE — cảnh báo)
- */
 
 import QtQuick 2.15
 

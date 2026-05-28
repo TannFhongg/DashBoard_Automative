@@ -1,13 +1,3 @@
-/**
- * @file    GearDisplay.qml
- * @brief   Hiển thị trạng thái hộp số PRND
- *
- * Màu sắc theo tiêu chuẩn automotive:
- *   P → Trắng  (xe đứng yên, an toàn)
- *   R → Đỏ    (cảnh báo, lùi xe)
- *   N → Vàng  (trung tính, cẩn thận)
- *   D → Xanh  (sẵn sàng tiến)
- */
 
 import QtQuick 2.15
 import QtQuick.Effects

@@ -1,15 +1,3 @@
-/**
- * @file    DashboardController.h
- * @brief   Qt Backend Controller - Trung tâm điều phối dữ liệu
- *
- * Lý thuyết kiến trúc:
- *   - Kế thừa QObject để sử dụng cơ chế Signal-Slot
- *   - Q_PROPERTY: Expose thuộc tính sang QML, tự động trigger binding
- *   - Q_INVOKABLE: Cho phép QML gọi hàm C++ trực tiếp
- *   - QSettings: Lưu trữ persistent (INI/Registry) cho ODO
- *   - SerialManager: Worker Pattern, đọc UART trên thread riêng
- *     → Main Thread (UI) không bao giờ bị block bởi I/O
- */
 
 #pragma once
 
@@ -17,13 +5,13 @@
 #include <QString>
 #include <QSettings>
 #include <QTimer>
-#include "SerialWorker.h"   // Dùng SerialManager thay vì raw QSerialPort
+#include "SerialWorker.h"
 
 class DashboardController : public QObject
 {
     Q_OBJECT
 
-    // ── Q_PROPERTY: QML có thể đọc và nhận notify khi thay đổi ──
+    //  Q_PROPERTY đọc và nhận tb khi thay đổi
     Q_PROPERTY(int     speed    READ speed    NOTIFY speedChanged)
     Q_PROPERTY(int     rpm      READ rpm      NOTIFY rpmChanged)
     Q_PROPERTY(QString gear     READ gear     NOTIFY gearChanged)
@@ -69,21 +57,21 @@ signals:
     void errorOccurred(const QString &message);
 
 private slots:
-    // ── Slots nhận từ SerialManager (chạy trên Main Thread qua Queued) ──
+    //  Slots nhận từ SerialManager ( trên Main Thread qua Queued)
     void onFrameReceived(const QString &frame);
     void onPortOpened(const QString &portName);
     void onPortClosed();
     void onSerialStats(int fps);
 
 private:
-    // ── Parse frame UART: "S120,R4500,GD,T15.5" ──
+    //  Parse frame UART: "S120,R4500,GD,T15.5"
     void parseFrame(const QString &frame);
 
-    // ── Lưu/Load ODO qua QSettings ──
+    // Lưu/Load ODO qua QSettings
     void saveOdo();
     void loadOdo();
 
-    // ── Thành viên dữ liệu ──
+    //  Thành viên dữ liệu
     int     m_speed     = 0;
     int     m_rpm       = 0;
     QString m_gear      = "P";
@@ -93,10 +81,10 @@ private:
     int     m_serialFps = 0;
     QString m_portName;
 
-    // ── Qt Objects ──
+    //  Qt Objects
     SerialManager *m_serialManager = nullptr;   // Worker Thread I/O
     QSettings     *m_settings      = nullptr;
 
-    // ── Lưu ODO định kỳ mỗi 5 giây ──
+    //  Lưu ODO định kỳ mỗi 5 giây
     QTimer *m_saveTimer = nullptr;
 };

@@ -1,16 +1,3 @@
-/**
- * @file    main.qml
- * @brief   Giao diện HMI Dashboard chính
- *
- * Layout:
- *   ┌─────────────────────────────────────┐
- *   │  [SPEED] odo/trip  [GEAR]  [RPM]   │
- *   │                                     │
- *   │    Speedometer    Tachometer        │
- *   │                                     │
- *   │      [Status bar / Serial port]     │
- *   └─────────────────────────────────────┘
- */
 
 import QtQuick 2.15
 import QtQuick.Controls 2.15

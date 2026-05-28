@@ -1,43 +1,25 @@
-/**
- * @file    DashboardController.cpp
- * @brief   Implementation của Qt Backend Controller
- *
- * Luồng dữ liệu (với SerialManager / Worker Thread):
- *
- *   Worker Thread                  Main Thread
- *   ──────────────────             ──────────────────────────────────
- *   SerialWorker                   DashboardController        QML
- *     readAll()                         │                      │
- *     processBuffer()                   │                      │
- *     emit frameReceived(str) ─────────▶│ onFrameReceived()    │
- *                                       │ parseFrame()         │
- *                                       │ emit speedChanged() ─▶ binding update
- *                                       │ emit rpmChanged()   ─▶ binding update
- */
+
 
 #include "DashboardController.h"
 #include <QSerialPortInfo>
 #include <QDebug>
 #include <QRegularExpression>
 
-// ─────────────────────────────────────────────
-// CONSTRUCTOR / DESTRUCTOR
-// ─────────────────────────────────────────────
 DashboardController::DashboardController(QObject *parent)
     : QObject(parent)
 {
-    // ── Khởi tạo QSettings ──
-    // Trên Linux: lưu tại ~/.config/AutomotiveDashboard/dashboard.ini
+    //  Khởi tạo QSettings
+
     m_settings = new QSettings("AutomotiveDashboard", "dashboard", this);
 
-    // ── Load ODO đã lưu từ lần trước ──
+    //  Load ODO đã lưu từ lần trước
     loadOdo();
 
-    // ── Khởi tạo SerialManager (Worker Thread Pattern) ──
+    // Khởi tạo SerialManager (Worker Thread Pattern)
     m_serialManager = new SerialManager(this);
 
-    // Kết nối signals từ SerialManager → slots của Controller
-    // Tất cả đều là Queued Connection → thread-safe, nhận trên Main Thread
+    // Kết nối signals từ SerialManager -> slots của Controller
+    // Tất cả đều là Queued Connection ddeens thread-safe, nhận trên Main Thread
     connect(m_serialManager, &SerialManager::frameReceived,
             this,            &DashboardController::onFrameReceived);
 
@@ -51,9 +33,9 @@ DashboardController::DashboardController(QObject *parent)
             this,            &DashboardController::onSerialStats);
 
     connect(m_serialManager, &SerialManager::errorOccurred,
-            this,            &DashboardController::errorOccurred);   // Forward thẳng ra QML
+            this,            &DashboardController::errorOccurred);   // Chuyen tiep thẳng ra QML
 
-    // ── Timer lưu ODO định kỳ (mỗi 5 giây) ──
+    //  Timer lưu ODO định kỳ
     m_saveTimer = new QTimer(this);
     m_saveTimer->setInterval(5000);
     connect(m_saveTimer, &QTimer::timeout, this, &DashboardController::saveOdo);
@@ -65,12 +47,12 @@ DashboardController::DashboardController(QObject *parent)
 DashboardController::~DashboardController()
 {
     saveOdo();
-    m_serialManager->stop();   // Dừng worker thread sạch sẽ
+    m_serialManager->stop();   // Dừng worker thread
 }
 
-// ─────────────────────────────────────────────
-// KẾT NỐI / NGẮT SERIAL (Gọi từ QML)
-// ─────────────────────────────────────────────
+
+// Connect / ngat SERIAL (Gọi từ QML)
+
 void DashboardController::connectSerial()
 {
     if (m_portName.isEmpty()) {
@@ -86,10 +68,9 @@ void DashboardController::disconnectSerial()
     m_serialManager->stop();
 }
 
-// ─────────────────────────────────────────────
-// SLOTS: NHẬN TỪ SerialManager
-// Tất cả chạy trên Main Thread (Queued Connection)
-// ─────────────────────────────────────────────
+
+// SLOTS: NHẬN TỪ SerialManager tất cả chạy trên Main Thread (Queued Connection)
+
 void DashboardController::onPortOpened(const QString &portName)
 {
     m_connected = true;
@@ -109,7 +90,7 @@ void DashboardController::onPortClosed()
 
 void DashboardController::onFrameReceived(const QString &frame)
 {
-    // Frame đã được tách sạch bởi SerialWorker, chỉ cần parse
+    // Frame đã được tách bởi SerialWorker
     parseFrame(frame);
 }
 
@@ -121,14 +102,9 @@ void DashboardController::onSerialStats(int fps)
     }
 }
 
-// ─────────────────────────────────────────────
 // PARSE FRAME UART
-//
 // Format: "S120,R4500,GD,T15.5"
-//
-// Phương pháp: Dùng QRegularExpression để extract
-// từng field, an toàn hơn sscanf với C++ string
-// ─────────────────────────────────────────────
+
 void DashboardController::parseFrame(const QString &frame)
 {
     // Pattern: S<int>,R<int>,G<char>,T<float>
@@ -154,7 +130,7 @@ void DashboardController::parseFrame(const QString &frame)
     double newTrip = match.captured(4).toDouble(&ok);
     if (!ok) return;
 
-    // ── Chỉ emit signal nếu giá trị thực sự thay đổi ──
+    //  Chỉ emit signal nếu giá trị thực sự thay đổi
     // Tối ưu: tránh QML re-render không cần thiết
     if (m_speed != newSpeed) {
         m_speed = newSpeed;
@@ -171,7 +147,7 @@ void DashboardController::parseFrame(const QString &frame)
         emit gearChanged(m_gear);
     }
 
-    // Trip: cập nhật liên tục (không cần kiểm tra thay đổi)
+    // Trip: cập nhật liên tục
     if (qAbs(m_trip - newTrip) > 0.01) {
         m_trip = newTrip;
         emit tripChanged(m_trip);
@@ -186,9 +162,9 @@ void DashboardController::parseFrame(const QString &frame)
 }
 
 // ─────────────────────────────────────────────
-// LƯU / ĐỌC ODO BẰNG QSETTINGS
+// LƯU / ĐỌC ODO  QSETTINGS
 //
-// Chiến lược: Lưu ODO_base = tổng ODO khi reset trip
+//Lưu ODO_base = tổng ODO khi reset trip
 // ODO hiển thị = ODO_base + trip hiện tại
 // Khi trip reset: ODO_base += trip → trip = 0
 // ─────────────────────────────────────────────
@@ -207,9 +183,8 @@ void DashboardController::loadOdo()
     emit odoChanged(m_odo);
 }
 
-// ─────────────────────────────────────────────
-// RESET TRIP (Gọi từ QML)
-// ─────────────────────────────────────────────
+// RESET TRIP
+
 void DashboardController::resetTrip()
 {
     // Gộp trip hiện tại vào ODO_base
@@ -222,9 +197,7 @@ void DashboardController::resetTrip()
     qDebug() << "[Trip] Reset. New ODO base:" << (currentBase + m_trip);
 }
 
-// ─────────────────────────────────────────────
-// TIỆN ÍCH
-// ─────────────────────────────────────────────
+
 void DashboardController::setPortName(const QString &name)
 {
     if (m_portName != name) {
