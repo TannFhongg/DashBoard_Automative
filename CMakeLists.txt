@@ -45,6 +45,9 @@ set_target_properties(appAutomative_DashBoard PROPERTIES
 
 target_link_libraries(appAutomative_DashBoard
     PRIVATE Qt6::Quick
+            Qt6::SerialPort
+            Qt6::Core
+            Qt6::Qml
 )
 
 install(TARGETS appAutomative_DashBoard

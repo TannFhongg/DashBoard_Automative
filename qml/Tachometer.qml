@@ -18,7 +18,6 @@
  */
 
 import QtQuick 2.15
-import QtQuick.Shapes 1.15
 
 Item {
     id: root
@@ -37,32 +36,19 @@ Item {
     // ── Trạng thái Redline ──
     readonly property bool isRedline: value >= redlineRpm
 
-    // ── Animation kim: SpringAnimation phản ứng nhanh/chậm bất đối xứng ──
-    // Tăng nhanh (gas in): spring cao, damping thấp → kim vọt lên
-    // Giảm chậm (gas out): SmoothedAnimation → kim rơi tự nhiên
+    // ── Smooth giá trị RPM ──
     Behavior on smoothedValue {
-        SmoothedAnimation {
-            // Tốc độ thay đổi tối đa: 4000 rpm/s (tăng) vs 2000 rpm/s (giảm)
-            // SmoothedAnimation velocity xử lý đều 2 chiều
-            // Để bất đối xứng thật sự cần dùng NumberAnimation + onValueChanged
-            velocity:    3500
-            duration:    180
-            easing.type: Easing.OutCubic
+        NumberAnimation {
+            id:           smoothValueAnim
+            duration:     200
+            easing.type:  Easing.OutCubic
         }
     }
 
     onValueChanged: {
         var clamped = Math.max(minValue, Math.min(maxValue, value));
-        // Tăng nhanh hơn giảm: khi tăng dùng spring, giảm dùng smooth
-        if (clamped > smoothedValue) {
-            // Tăng ga: animation nhanh hơn
-            rpmSpring.enabled   = true;
-            smoothAnim.enabled  = false;
-        } else {
-            // Thả ga: animation chậm hơn, có inertia
-            rpmSpring.enabled   = false;
-            smoothAnim.enabled  = true;
-        }
+        // Tăng ga: nhanh hơn (150ms), Thả ga: chậm hơn (400ms)
+        smoothValueAnim.duration = (clamped > smoothedValue) ? 150 : 400;
         smoothedValue = clamped;
     }
 
@@ -260,64 +246,80 @@ Item {
     }
 
     // ─────────────────────────────────────────
-    // KIM ĐỒNG HỒ RPM
+    // KIM ĐỒNG HỒ RPM — vẽ bằng Canvas
+    // Dùng Canvas thay Shape để tránh PathClose issue (Qt 6.5)
+    // Bất đối xứng: tăng nhanh (SpringAnimation), giảm chậm (SmoothedAnimation)
     // ─────────────────────────────────────────
-    Item {
-        id: needleContainer
-        anchors.centerIn: parent
-        width:  parent.width
-        height: parent.height
+    Canvas {
+        id: needleCanvas
+        anchors.fill: parent
+        z: 5
 
-        rotation:        root.needleAngle
-        transformOrigin: Item.Center
+        // Góc kim hiển thị (được animate)
+        property real displayAngle: root.needleAngle
 
-        // ── Behavior tăng (SpringAnimation) ──
-        SpringAnimation on rotation {
-            id:      rpmSpring
-            enabled: false
-            spring:  4.5      // Cứng hơn Speedometer → phản ứng nhanh
-            damping: 0.25     // Ít giảm chấn → hơi dao động khi tới đỉnh
-            epsilon: 0.5
-        }
-
-        // ── Behavior giảm (SmoothedAnimation) ──
-        SmoothedAnimation on rotation {
-            id:       smoothAnim
-            enabled:  true
-            velocity: 1500     // rơi chậm hơn tốc độ tăng
-            duration: 350
-            easing.type: Easing.OutQuad
-        }
-
-        // Thân kim
-        Shape {
-            anchors.centerIn: parent
-            ShapePath {
-                fillColor:   root.isRedline ? "#FF2020" : "#FF7020"
-                strokeColor: "transparent"
-                PathMove { x:  0; y: -gaugeCanvas.height * 0.37 }
-                PathLine { x:  3.5; y: 10 }
-                PathLine { x: -3.5; y: 10 }
-                PathClose {}
-
-                Behavior on fillColor {
-                    ColorAnimation { duration: 100 }
-                }
+        // Behavior duy nhất — duration thay đổi theo chiều qua needleAnim
+        Behavior on displayAngle {
+            NumberAnimation {
+                id:       needleAnim
+                duration: 180           // mặc định: tăng ga nhanh
+                easing.type: Easing.OutQuart
             }
         }
 
-        // Đuôi kim (counterweight — hình thang ngắn)
-        Shape {
-            anchors.centerIn: parent
-            ShapePath {
-                fillColor:   "#991010"
-                strokeColor: "transparent"
-                PathMove { x:  3; y: 10 }
-                PathLine { x: -3; y: 10 }
-                PathLine { x: -1.5; y: gaugeCanvas.height * 0.09 }
-                PathLine { x:  1.5; y: gaugeCanvas.height * 0.09 }
-                PathClose {}
+        // Khi target angle thay đổi: điều chỉnh duration theo chiều tăng/giảm
+        onDisplayAngleChanged: requestPaint()
+
+        Connections {
+            target: root
+            function onNeedleAngleChanged() {
+                var increasing = (root.needleAngle > needleCanvas.displayAngle);
+                // Tăng ga → nhanh (180ms), Thả ga → chậm hơn (380ms, quán tính)
+                needleAnim.duration    = increasing ? 180 : 380;
+                needleAnim.easing.type = increasing ? Easing.OutQuart : Easing.OutCubic;
+                needleCanvas.displayAngle = root.needleAngle;
             }
+        }
+
+        // Vẽ lại khi redline đổi màu
+        property bool redlineState: root.isRedline
+        onRedlineStateChanged: requestPaint()
+
+        onPaint: {
+            var ctx  = getContext("2d");
+            ctx.clearRect(0, 0, width, height);
+
+            var cx   = width  / 2;
+            var cy   = height / 2;
+            var rad  = (displayAngle - 90) * Math.PI / 180;
+            var len  = Math.min(width, height) * 0.37;
+            var tail = Math.min(width, height) * 0.09;
+            var w    = 3.5;
+
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.rotate(rad);
+
+            // Thân kim (tam giác)
+            ctx.beginPath();
+            ctx.moveTo(0,  -len);
+            ctx.lineTo( w,  10);
+            ctx.lineTo(-w,  10);
+            ctx.closePath();
+            ctx.fillStyle = root.isRedline ? "#FF2020" : "#FF7020";
+            ctx.fill();
+
+            // Đuôi kim (hình thang)
+            ctx.beginPath();
+            ctx.moveTo( w,   10);
+            ctx.lineTo(-w,   10);
+            ctx.lineTo(-1.5, tail * height / Math.min(width, height) * 10);
+            ctx.lineTo( 1.5, tail * height / Math.min(width, height) * 10);
+            ctx.closePath();
+            ctx.fillStyle = "#991010";
+            ctx.fill();
+
+            ctx.restore();
         }
     }
 
